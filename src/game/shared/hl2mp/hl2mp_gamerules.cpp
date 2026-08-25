@@ -766,6 +766,11 @@ void CHL2MPRules::ResumeRoundWithoutChangelevel()
 			continue;
 
 		pPlayer->ShowViewPortPanel( PANEL_SCOREBOARD, false );
+		// Verhindert das Gluckern beim Unfreeze: ein waehrend des Freeze
+		// gesetztes m_bPlayUseDenySound wuerde sonst in ItemPostFrame()
+		// direkt nach dem Entfernen von FL_FROZEN einen HL2Player.UseDeny-
+		// Sound abspielen.
+		pPlayer->ClearUseDenySound();
 		pPlayer->RemoveFlag( FL_FROZEN );
 		pPlayer->Reset(); // Frag-/Death-Count des Spielers zuruecksetzen
 	}
