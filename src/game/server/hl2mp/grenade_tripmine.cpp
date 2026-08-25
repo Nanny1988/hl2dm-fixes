@@ -12,6 +12,7 @@
 #include "vstdlib/random.h"
 #include "engine/IEngineSound.h"
 #include "explode.h"
+#include "hl2mp_gamerules.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -199,11 +200,22 @@ void CTripmineGrenade::MakeBeam( void )
 	}
 
 	m_hBeam->PointEntInit( tr.endpos, this );
-	m_hBeam->SetColor( 255, 55, 52 );
 	m_hBeam->SetScrollRate( 25.6 );
-	m_hBeam->SetBrightness( 64 );
-	
+
 	int beamAttach = LookupAttachment("beam_attach");
+
+	CBaseEntity *pOwner = m_hOwner.Get();
+	if ( HL2MPRules()->IsTeamplay() && pOwner && pOwner->GetTeamNumber() == TEAM_COMBINE )
+	{
+		m_hBeam->SetBrightness( 164 );
+		m_hBeam->SetColor( 10, 52, 255 );
+	}
+	else
+	{
+		m_hBeam->SetBrightness( 64 );
+		m_hBeam->SetColor( 255, 55, 52 );
+	}
+
 	m_hBeam->SetEndAttachment( beamAttach );
 }
 

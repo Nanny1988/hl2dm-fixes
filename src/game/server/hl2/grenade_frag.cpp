@@ -11,6 +11,9 @@
 #include "Sprite.h"
 #include "SpriteTrail.h"
 #include "soundent.h"
+#ifdef HL2MP
+#include "hl2mp_gamerules.h"
+#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -162,7 +165,15 @@ void CGrenadeFrag::CreateEffects( void )
 	// Start up the eye glow
 	if ( !m_pMainGlow.Get() )
 	{
-		m_pMainGlow = CSprite::SpriteCreate("sprites/redglow1.vmt", GetAbsOrigin(), false);
+		const char *pszGlowSprite = "sprites/redglow1.vmt";
+#ifdef HL2MP
+		CBaseEntity *pOwner = GetOwnerEntity();
+		if ( HL2MPRules()->IsTeamplay() && pOwner && pOwner->GetTeamNumber() == TEAM_COMBINE )
+		{
+			pszGlowSprite = "sprites/blueglow1.vmt";
+		}
+#endif
+		m_pMainGlow = CSprite::SpriteCreate( pszGlowSprite, GetAbsOrigin(), false );
 	}
 
 	if ( m_pMainGlow != NULL )
@@ -183,7 +194,15 @@ void CGrenadeFrag::CreateEffects( void )
 
 	if ( m_pGlowTrail != NULL )
 	{
-		m_pGlowTrail->SetTransparency( kRenderTransAdd, 255, 0, 0, 255, kRenderFxNone );
+		byte trailR = 255, trailG = 0, trailB = 0, trailA = 255;
+#ifdef HL2MP
+		CBaseEntity *pOwner = GetOwnerEntity();
+		if ( HL2MPRules()->IsTeamplay() && pOwner && pOwner->GetTeamNumber() == TEAM_COMBINE )
+		{
+			trailR = 0; trailG = 0; trailB = 255; trailA = 200;
+		}
+#endif
+		m_pGlowTrail->SetTransparency( kRenderTransAdd, trailR, trailG, trailB, trailA, kRenderFxNone );
 		m_pGlowTrail->SetStartWidth( 8.0f );
 		m_pGlowTrail->SetEndWidth( 1.0f );
 		m_pGlowTrail->SetLifeTime( 0.5f );
