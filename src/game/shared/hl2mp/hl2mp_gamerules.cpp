@@ -33,6 +33,7 @@
 	#include "voice_gamemgr.h"
 	#include "hl2mp_gameinterface.h"
 	#include "hl2mp_cvars.h"
+	#include "basemultiplayerplayer.h"
 
 extern void respawn(CBaseEntity *pEdict, bool fCopyCorpse);
 
@@ -88,6 +89,15 @@ ConVar sv_equalizer_combine_blue( "sv_equalizer_combine_blue", "0", 0 );
 ConVar sv_equalizer_rebels_red( "sv_equalizer_rebels_red", "255", 0 );
 ConVar sv_equalizer_rebels_green( "sv_equalizer_rebels_green", "0", 0 );
 ConVar sv_equalizer_rebels_blue( "sv_equalizer_rebels_blue", "0", 0 );
+
+ConVar sv_timeleft_enable( "sv_timeleft_enable", "1", 0, "If non-zero, enables time left indication on the HUD.", true, 0.0, true, 1.0 );
+ConVar sv_timeleft_teamscore( "sv_timeleft_teamscore", "1", 0, "If non-zero, enables team scores on the HUD (left Combine, right Rebels).", true, 0.0, true, 1.0 );
+ConVar sv_timeleft_r( "sv_timeleft_red", "255", 0, "Red intensity.", true, 0.0, true, 255.0 );
+ConVar sv_timeleft_g( "sv_timeleft_green", "255", 0, "Green intensity.", true, 0.0, true, 255.0 );
+ConVar sv_timeleft_b( "sv_timeleft_blue", "255", 0, "Blue intensity.", true, 0.0, true, 255.0 );
+ConVar sv_timeleft_channel( "sv_timeleft_channel", "0", 0, "Hud text channel.", true, 0.0, true, 5.0 ); // Channels go from 0 to 5 (6 total channels).
+ConVar sv_timeleft_x( "sv_timeleft_x", "-1" );
+ConVar sv_timeleft_y( "sv_timeleft_y", "0.01" );
 
 extern ConVar mp_chattime;
 
@@ -421,6 +431,8 @@ void CHL2MPRules::Think( void )
 	// ueberschrieb (Feature liess sich effektiv nie ausschalten). Der
 	// Reset-Callback allein reicht aus.
 
+	HandleTimeleft();
+
 	if ( g_fGameOver )   // someone else quit the game already
 	{
 		// check to see if we should change levels now
@@ -499,6 +511,204 @@ void CHL2MPRules::Think( void )
 
 #endif
 }
+
+#ifndef CLIENT_DLL
+
+void CHL2MPRules::HandleTimeleft()
+{
+	if ( GetMapRemainingTime() <= 0 || !sv_timeleft_enable.GetBool() )
+		return;
+
+	if ( gpGlobals->curtime <= m_tmNextPeriodicThink )
+		return;
+
+	hudtextparms_t textParams = CreateTextParams();
+
+	int iTimeRemaining = (int)GetMapRemainingTime();
+	char stime[64];
+	FormatTimeRemaining( iTimeRemaining, stime, sizeof( stime ) );
+
+	if ( sv_timeleft_teamscore.GetBool() )
+	{
+		if ( IsTeamplay() )
+		{
+			UpdateTeamScoreColors( textParams );
+		}
+		else
+		{
+			DisplayUnassignedTeamStats( textParams, stime );
+			DisplaySpectatorStats( textParams, stime );
+			return;
+		}
+	}
+
+	SendHudMessagesToPlayers( textParams, stime );
+}
+
+hudtextparms_t CHL2MPRules::CreateTextParams()
+{
+	hudtextparms_t textParams = { 0 };
+	textParams.channel = sv_timeleft_channel.GetInt();
+	textParams.r1 = 255;
+	textParams.g1 = 255;
+	textParams.b1 = 255;
+	if ( !IsTeamplay() )
+	{
+		textParams.r1 = sv_timeleft_r.GetInt();
+		textParams.g1 = sv_timeleft_g.GetInt();
+		textParams.b1 = sv_timeleft_b.GetInt();
+	}
+	textParams.a1 = 255;
+	textParams.x = sv_timeleft_x.GetFloat();
+	textParams.y = sv_timeleft_y.GetFloat();
+	textParams.effect = 0;
+	textParams.fadeinTime = 0;
+	textParams.fadeoutTime = 0;
+	textParams.holdTime = 1.10;
+	textParams.fxTime = 0;
+	return textParams;
+}
+
+void CHL2MPRules::FormatTimeRemaining( int iTimeRemaining, char *buffer, size_t bufferSize )
+{
+	int iMinutes = ( iTimeRemaining / 60 ) % 60;
+	int iSeconds = iTimeRemaining % 60;
+	int iHours = ( iTimeRemaining / 3600 ) % 24;
+	int iDays = ( iTimeRemaining / 86400 );
+
+	if ( IsTeamplay() )
+	{
+		CTeam *pCombine = g_Teams[TEAM_COMBINE];
+		CTeam *pRebels = g_Teams[TEAM_REBELS];
+
+		int combineScore = pCombine ? pCombine->GetScore() : 0;
+		int rebelsScore = pRebels ? pRebels->GetScore() : 0;
+
+		if ( iTimeRemaining >= 86400 )
+		{
+			Q_snprintf( buffer, bufferSize, "%d %2.2d:%2.2d:%2.2d:%2.2d %d",
+				combineScore, iDays, iHours, iMinutes, iSeconds, rebelsScore );
+		}
+		else if ( iTimeRemaining >= 3600 )
+		{
+			Q_snprintf( buffer, bufferSize, "%d %2.2d:%2.2d:%2.2d %d",
+				combineScore, iHours, iMinutes, iSeconds, rebelsScore );
+		}
+		else
+		{
+			Q_snprintf( buffer, bufferSize, "%d %d:%2.2d %d",
+				combineScore, iMinutes, iSeconds, rebelsScore );
+		}
+	}
+	else
+	{
+		FormatStandardTime( iTimeRemaining, buffer, bufferSize );
+	}
+}
+
+void CHL2MPRules::FormatStandardTime( int iTimeRemaining, char *buffer, size_t bufferSize )
+{
+	int iMinutes = ( iTimeRemaining / 60 ) % 60;
+	int iSeconds = iTimeRemaining % 60;
+	int iHours = ( iTimeRemaining / 3600 ) % 24;
+	int iDays = ( iTimeRemaining / 86400 );
+
+	if ( iTimeRemaining >= 86400 )
+		Q_snprintf( buffer, bufferSize, "%2.2d:%2.2d:%2.2d:%2.2d", iDays, iHours, iMinutes, iSeconds );
+	else if ( iTimeRemaining >= 3600 )
+		Q_snprintf( buffer, bufferSize, "%2.2d:%2.2d:%2.2d", iHours, iMinutes, iSeconds );
+	else
+		Q_snprintf( buffer, bufferSize, "%d:%2.2d", iMinutes, iSeconds );
+}
+
+void CHL2MPRules::UpdateTeamScoreColors( hudtextparms_t &textParams )
+{
+	CTeam *pCombine = g_Teams[TEAM_COMBINE];
+	CTeam *pRebels = g_Teams[TEAM_REBELS];
+
+	if ( pCombine->GetScore() > pRebels->GetScore() )
+	{
+		textParams.r1 = 159;
+		textParams.g1 = 202;
+		textParams.b1 = 242;
+	}
+	else if ( pRebels->GetScore() > pCombine->GetScore() )
+	{
+		textParams.r1 = 255;
+		textParams.g1 = 50;
+		textParams.b1 = 50;
+	}
+	else
+	{
+		textParams.r1 = 255;
+		textParams.g1 = 255;
+		textParams.b1 = 255;
+	}
+}
+
+void CHL2MPRules::DisplayUnassignedTeamStats( hudtextparms_t &textParams, const char *stime )
+{
+	CTeam *pTeamUnassigned = g_Teams[TEAM_UNASSIGNED];
+	if ( !pTeamUnassigned )
+		return;
+
+	CUtlVector<CBaseMultiplayerPlayer *> unassignedPlayers;
+	for ( int i = 1; i <= gpGlobals->maxClients; i++ )
+	{
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
+		CBaseMultiplayerPlayer *pMultiplayerPlayer = ToBaseMultiplayerPlayer( pPlayer );
+
+		if ( pMultiplayerPlayer && pMultiplayerPlayer->GetTeamNumber() == TEAM_UNASSIGNED && !pMultiplayerPlayer->IsObserver() )
+		{
+			unassignedPlayers.AddToTail( pMultiplayerPlayer );
+		}
+	}
+
+	unassignedPlayers.Sort( []( CBaseMultiplayerPlayer *const *a, CBaseMultiplayerPlayer *const *b ) {
+		return ( *b )->FragCount() - ( *a )->FragCount();
+		} );
+
+	for ( int i = 0; i < unassignedPlayers.Count(); i++ )
+	{
+		CBaseMultiplayerPlayer *pCurrentPlayer = unassignedPlayers[i];
+		int playerRank = i + 1;
+
+		char playerStatText[128];
+
+		if ( pCurrentPlayer->FragCount() >= 2 || pCurrentPlayer->FragCount() <= -2 )
+			Q_snprintf( playerStatText, sizeof( playerStatText ), "%s\n%d/%d | %d Frags", stime, playerRank, unassignedPlayers.Count(), pCurrentPlayer->FragCount() );
+		else
+			Q_snprintf( playerStatText, sizeof( playerStatText ), "%s\n%d/%d | %d Frag", stime, playerRank, unassignedPlayers.Count(), pCurrentPlayer->FragCount() );
+
+		UTIL_HudMessage( pCurrentPlayer, textParams, playerStatText );
+	}
+}
+
+void CHL2MPRules::DisplaySpectatorStats( hudtextparms_t &textParams, const char *stime )
+{
+	for ( int i = 1; i <= gpGlobals->maxClients; i++ )
+	{
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
+		if ( pPlayer && pPlayer->IsConnected() && !pPlayer->IsBot() && pPlayer->GetTeamNumber() == TEAM_SPECTATOR )
+		{
+			UTIL_HudMessage( pPlayer, textParams, stime );
+		}
+	}
+}
+
+void CHL2MPRules::SendHudMessagesToPlayers( hudtextparms_t &textParams, const char *stime )
+{
+	for ( int i = 1; i <= gpGlobals->maxClients; i++ )
+	{
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
+		if ( pPlayer && pPlayer->IsConnected() && !pPlayer->IsBot() )
+		{
+			UTIL_HudMessage( pPlayer, textParams, stime );
+		}
+	}
+}
+
+#endif
 
 void CHL2MPRules::GoToIntermission( void )
 {

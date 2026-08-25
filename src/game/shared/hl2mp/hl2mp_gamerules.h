@@ -138,6 +138,15 @@ public:
 	void    CheckChatForReadySignal( CHL2MP_Player *pPlayer, const char *chatmsg );
 	const char *GetChatFormat( bool bTeamOnly, CBasePlayer *pPlayer );
 
+	void HandleTimeleft();
+	hudtextparms_t CreateTextParams();
+	void FormatTimeRemaining( int iTimeRemaining, char *buffer, size_t bufferSize );
+	void FormatStandardTime( int iTimeRemaining, char *buffer, size_t bufferSize );
+	void UpdateTeamScoreColors( hudtextparms_t &textParams );
+	void DisplayUnassignedTeamStats( hudtextparms_t &textParams, const char *stime );
+	void DisplaySpectatorStats( hudtextparms_t &textParams, const char *stime );
+	void SendHudMessagesToPlayers( hudtextparms_t &textParams, const char *stime );
+
 #endif
 
 	bool IsOfficialMap( void );
