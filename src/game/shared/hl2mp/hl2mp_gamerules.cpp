@@ -760,13 +760,27 @@ void CHL2MPRules::ResumeRoundWithoutChangelevel()
 
 	for ( int i = 0; i < MAX_PLAYERS; i++ )
 	{
-		CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
+		CHL2MP_Player *pPlayer = (CHL2MP_Player*) UTIL_PlayerByIndex( i );
 
 		if ( !pPlayer )
 			continue;
 
 		pPlayer->ShowViewPortPanel( PANEL_SCOREBOARD, false );
 		pPlayer->RemoveFlag( FL_FROZEN );
+		pPlayer->Reset(); // Frag-/Death-Count des Spielers zuruecksetzen
+	}
+
+	CTeam *pRebels = GetGlobalTeam( TEAM_REBELS );
+	CTeam *pCombine = GetGlobalTeam( TEAM_COMBINE );
+
+	if ( pRebels )
+	{
+		pRebels->SetScore( 0 );
+	}
+
+	if ( pCombine )
+	{
+		pCombine->SetScore( 0 );
 	}
 
 	g_fGameOver = false;
