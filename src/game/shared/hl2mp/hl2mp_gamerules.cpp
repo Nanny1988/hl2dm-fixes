@@ -333,44 +333,48 @@ void CHL2MPRules::Think( void )
 	if ( sv_equalizer.GetBool() )
 	{
 		CBaseEntity *pLightingTarget = gEntList.FindEntityByName( NULL, "sf_equalizer_hax" );
-		if ( pLightingTarget )
+		for ( int i = 1; i <= gpGlobals->maxClients; i++ )
 		{
-			for ( int i = 1; i <= gpGlobals->maxClients; i++ )
+			CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
+			if ( pPlayer && pPlayer->GetTeamNumber() != TEAM_SPECTATOR )
 			{
-				CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
-				if ( pPlayer && pPlayer->GetTeamNumber() != TEAM_SPECTATOR )
+				const char *forcedModel = "models/combine_super_soldier.mdl";
+				const char *currentModel = modelinfo->GetModelName( pPlayer->GetModel() );
+
+				CBaseEntity::PrecacheModel( forcedModel );
+				CBaseEntity::PrecacheScriptSound( "NPC_CombineS.Die" );
+
+				if ( Q_stricmp( currentModel, forcedModel ) != 0 )
 				{
-					const char *forcedModel = "models/combine_super_soldier.mdl";
-					const char *currentModel = modelinfo->GetModelName( pPlayer->GetModel() );
+					pPlayer->SetModel( forcedModel );
+				}
 
-					CBaseEntity::PrecacheModel( forcedModel );
-					CBaseEntity::PrecacheScriptSound( "NPC_CombineS.Die" );
+				if ( pPlayer->GetTeamNumber() == TEAM_COMBINE )
+				{
+					pPlayer->SetRenderColor( sv_equalizer_combine_red.GetInt(),
+						sv_equalizer_combine_green.GetInt(),
+						sv_equalizer_combine_blue.GetInt() );
+				}
+				else if ( pPlayer->GetTeamNumber() == TEAM_REBELS )
+				{
+					pPlayer->SetRenderColor( sv_equalizer_rebels_red.GetInt(),
+						sv_equalizer_rebels_green.GetInt(),
+						sv_equalizer_rebels_blue.GetInt() );
+				}
+				else if ( pPlayer->GetTeamNumber() == TEAM_UNASSIGNED )
+				{
+					pPlayer->SetRenderColor( 0, 255, 0 );
+				}
 
-					if ( Q_stricmp( currentModel, forcedModel ) != 0 )
-					{
-						pPlayer->SetModel( forcedModel );
-					}
+				pPlayer->SetRenderMode( kRenderTransAdd );
+				pPlayer->m_nRenderFX = kRenderFxGlowShell;
+				pPlayer->SetRenderColorA( 255 );
 
-					if ( pPlayer->GetTeamNumber() == TEAM_COMBINE )
-					{
-						pPlayer->SetRenderColor( sv_equalizer_combine_red.GetInt(),
-							sv_equalizer_combine_green.GetInt(),
-							sv_equalizer_combine_blue.GetInt() );
-					}
-					else if ( pPlayer->GetTeamNumber() == TEAM_REBELS )
-					{
-						pPlayer->SetRenderColor( sv_equalizer_rebels_red.GetInt(),
-							sv_equalizer_rebels_green.GetInt(),
-							sv_equalizer_rebels_blue.GetInt() );
-					}
-					else if ( pPlayer->GetTeamNumber() == TEAM_UNASSIGNED )
-					{
-						pPlayer->SetRenderColor( 0, 255, 0 );
-					}
-
-					pPlayer->SetRenderMode( kRenderTransAdd );
-					pPlayer->m_nRenderFX = kRenderFxGlowShell;
-					pPlayer->SetRenderColorA( 255 );
+				// Der Glow-Shell-Effekt braucht ein Lighting-Origin-Ziel; ohne
+				// sf_equalizer_hax auf der Map faellt nur der Glow weg, Modell
+				// und Team-Farbe werden trotzdem gesetzt.
+				if ( pLightingTarget )
+				{
 					pPlayer->SetLightingOrigin( pLightingTarget );
 				}
 			}
