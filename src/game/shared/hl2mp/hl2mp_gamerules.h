@@ -138,6 +138,7 @@ public:
 	void    CheckChatForReadySignal( CHL2MP_Player *pPlayer, const char *chatmsg );
 	const char *GetChatFormat( bool bTeamOnly, CBasePlayer *pPlayer );
 
+	void ResumeRoundWithoutChangelevel();
 	void HandleTimeleft();
 	hudtextparms_t CreateTextParams();
 	void FormatTimeRemaining( int iTimeRemaining, char *buffer, size_t bufferSize );

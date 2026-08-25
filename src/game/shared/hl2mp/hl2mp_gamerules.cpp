@@ -42,6 +42,7 @@ extern bool FindInList( const char **pStrings, const char *pToFind );
 ConVar sv_hl2mp_weapon_respawn_time( "sv_hl2mp_weapon_respawn_time", "20", FCVAR_GAMEDLL | FCVAR_NOTIFY );
 ConVar sv_hl2mp_item_respawn_time( "sv_hl2mp_item_respawn_time", "30", FCVAR_GAMEDLL | FCVAR_NOTIFY );
 ConVar sv_report_client_settings("sv_report_client_settings", "0", FCVAR_GAMEDLL | FCVAR_NOTIFY );
+ConVar mp_changelevel_map_end( "mp_changelevel_map_end", "1", FCVAR_NOTIFY, "If 0, the map is never changed when the round ends (fraglimit/timelimit); instead, after mp_chattime seconds, mp_timelimit's clock is reset, players are unfrozen and the scoreboard is closed.", true, 0.0, true, 1.0 );
 
 void sv_equalizer_changed( IConVar *pConVar, const char *pOldString, float flOldValue )
 {
@@ -440,8 +441,18 @@ void CHL2MPRules::Think( void )
 		{
 			if ( !m_bChangelevelDone )
 			{
-				ChangeLevel(); // intermission is over
-				m_bChangelevelDone = true;
+				if ( mp_changelevel_map_end.GetBool() )
+				{
+					ChangeLevel(); // intermission is over
+					m_bChangelevelDone = true;
+				}
+				else
+				{
+					// Setzt g_fGameOver/m_flIntermissionEndTime/m_bChangelevelDone
+					// selbst zurueck, damit der naechste Rundenende-Zyklus wieder
+					// greift, statt (wie ChangeLevel()) die Map zu wechseln.
+					ResumeRoundWithoutChangelevel();
+				}
 			}
 		}
 
@@ -731,7 +742,37 @@ void CHL2MPRules::GoToIntermission( void )
 		pPlayer->AddFlag( FL_FROZEN );
 	}
 #endif
-	
+
+}
+
+void CHL2MPRules::ResumeRoundWithoutChangelevel()
+{
+#ifndef CLIENT_DLL
+	// mp_changelevel_map_end 0: Statt die Map zu wechseln, laeuft die Runde auf
+	// derselben Map weiter -- mp_timelimit-Uhr neu starten, Freeze aufheben,
+	// Scoreboard schliessen.
+	m_flGameStartTime = gpGlobals->curtime;
+	if ( !IsFinite( m_flGameStartTime.Get() ) )
+	{
+		Warning( "Trying to set a NaN game start time\n" );
+		m_flGameStartTime.GetForModify() = 0.0f;
+	}
+
+	for ( int i = 0; i < MAX_PLAYERS; i++ )
+	{
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
+
+		if ( !pPlayer )
+			continue;
+
+		pPlayer->ShowViewPortPanel( PANEL_SCOREBOARD, false );
+		pPlayer->RemoveFlag( FL_FROZEN );
+	}
+
+	g_fGameOver = false;
+	m_flIntermissionEndTime = 0;
+	m_bChangelevelDone = false;
+#endif
 }
 
 bool CHL2MPRules::CheckGameOver()
@@ -742,7 +783,14 @@ bool CHL2MPRules::CheckGameOver()
 		// check to see if we should change levels now
 		if ( m_flIntermissionEndTime < gpGlobals->curtime )
 		{
-			ChangeLevel(); // intermission is over			
+			if ( mp_changelevel_map_end.GetBool() )
+			{
+				ChangeLevel(); // intermission is over
+			}
+			else
+			{
+				ResumeRoundWithoutChangelevel();
+			}
 		}
 
 		return true;
