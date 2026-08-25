@@ -394,13 +394,20 @@ void CHL2MPRules::Think( void )
 					pPlayer->SetRenderColor( 0, 255, 0 );
 				}
 
+				// Bewusst KEIN kRenderFxGlowShell: die dabei nach aussen
+				// aufgeblasene Shell-Geometrie wird auch fuer die Kamera des
+				// eigenen Spielers gezeichnet und schneidet in Egoperspektive
+				// direkt durchs Gesicht -- sichtbar als oranger Streifen vor
+				// der Kamera. Die reine additive Einfaerbung reicht fuer die
+				// gewuenschte Sichtbarkeit auch ohne die Shell.
 				pPlayer->SetRenderMode( kRenderTransAdd );
-				pPlayer->m_nRenderFX = kRenderFxGlowShell;
+				pPlayer->m_nRenderFX = kRenderFxNone;
 				pPlayer->SetRenderColorA( 255 );
 
-				// Der Glow-Shell-Effekt braucht ein Lighting-Origin-Ziel; ohne
-				// sf_equalizer_hax auf der Map faellt nur der Glow weg, Modell
-				// und Team-Farbe werden trotzdem gesetzt.
+				// sf_equalizer_hax sorgt nur noch dafuer, dass die additive
+				// Einfaerbung an einem festen Punkt ausgeleuchtet wird; ohne
+				// die Entity faellt das weg, Modell und Team-Farbe werden
+				// trotzdem gesetzt.
 				if ( pLightingTarget )
 				{
 					pPlayer->SetLightingOrigin( pLightingTarget );
