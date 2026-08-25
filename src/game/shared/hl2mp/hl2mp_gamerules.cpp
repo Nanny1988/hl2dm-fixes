@@ -55,6 +55,26 @@ void sv_equalizer_changed( IConVar *pConVar, const char *pOldString, float flOld
 				pPlayer->SetRenderMode( kRenderNormal );
 				pPlayer->m_nRenderFX = kRenderFxNone;
 				pPlayer->m_nRenderMode = kRenderNormal;
+
+				CHL2MP_Player *pHL2MPPlayer = ToHL2MPPlayer( pPlayer );
+				if ( pHL2MPPlayer )
+				{
+					// Stellt das eigentliche Spielermodell (und damit auch die
+					// richtigen Footstep-Sounds) wieder her -- genau wie beim
+					// Teamwechsel in CHL2MP_Player::ChangeTeam(). Ohne das
+					// bleibt der Spieler optisch/akustisch auf
+					// combine_super_soldier haengen -- u.a. der an dem Modell
+					// haengende orange Augen-Glow blieb bisher bis zum
+					// naechsten Respawn sichtbar.
+					if ( HL2MPRules()->IsTeamplay() )
+					{
+						pHL2MPPlayer->SetPlayerTeamModel();
+					}
+					else
+					{
+						pHL2MPPlayer->SetPlayerModel();
+					}
+				}
 			}
 		}
 	}
@@ -347,6 +367,14 @@ void CHL2MPRules::Think( void )
 				if ( Q_stricmp( currentModel, forcedModel ) != 0 )
 				{
 					pPlayer->SetModel( forcedModel );
+				}
+
+				CHL2MP_Player *pHL2MPPlayer = ToHL2MPPlayer( pPlayer );
+				if ( pHL2MPPlayer && pHL2MPPlayer->GetPlayerModelType() != PLAYER_SOUNDS_CITIZEN )
+				{
+					// Solange der Equalizer aktiv ist, bekommen alle Spieler
+					// (unabhaengig vom Team) Rebel-/Citizen-Footsteps.
+					pHL2MPPlayer->SetupPlayerSoundsByModel( "models/human" );
 				}
 
 				if ( pPlayer->GetTeamNumber() == TEAM_COMBINE )
