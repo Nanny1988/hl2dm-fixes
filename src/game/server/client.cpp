@@ -45,6 +45,11 @@
 #include "weapon_physcannon.h"
 #endif
 
+#ifdef HL2MP
+extern ConVar sv_equalizer;
+extern ConVar sv_equalizer_allow_toggle;
+#endif
+
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -239,6 +244,31 @@ void Host_Say( edict_t *pEdict, const CCommand &args, bool teamonly )
 
 		if ( !p )
 			return;
+
+#ifdef HL2MP
+		// !e Chat-Command: sv_equalizer selbst umschalten, nur wenn per
+		// ConVar erlaubt. Wird NICHT als normale Chatnachricht angezeigt.
+		if ( pPlayer && Q_stricmp( p, "!e" ) == 0 )
+		{
+			if ( sv_equalizer_allow_toggle.GetBool() )
+			{
+				bool newState = !sv_equalizer.GetBool();
+				sv_equalizer.SetValue( newState ? 1 : 0 );
+
+				char msg[128];
+				Q_snprintf( msg, sizeof(msg), "%s hat den Equalizer-Modus %s.\n",
+					pPlayer->GetPlayerName(), newState ? "aktiviert" : "deaktiviert" );
+				UTIL_ClientPrintAll( HUD_PRINTTALK, msg );
+			}
+			else
+			{
+				ClientPrint( pPlayer, HUD_PRINTCONSOLE,
+					"Equalizer-Umschalten ist auf diesem Server deaktiviert.\n" );
+			}
+			return; // WICHTIG: verhindert, dass "!e" als normale Chatnachricht
+			        // an alle Spieler verschickt wird
+		}
+#endif
 
 		Assert( strlen( pPlayer->GetPlayerName() ) > 0 );
 

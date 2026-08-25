@@ -42,6 +42,33 @@ ConVar sv_hl2mp_weapon_respawn_time( "sv_hl2mp_weapon_respawn_time", "20", FCVAR
 ConVar sv_hl2mp_item_respawn_time( "sv_hl2mp_item_respawn_time", "30", FCVAR_GAMEDLL | FCVAR_NOTIFY );
 ConVar sv_report_client_settings("sv_report_client_settings", "0", FCVAR_GAMEDLL | FCVAR_NOTIFY );
 
+void sv_equalizer_changed( IConVar *pConVar, const char *pOldString, float flOldValue )
+{
+	if ( !((ConVar*)pConVar)->GetBool() )
+	{
+		for ( int i = 1; i <= gpGlobals->maxClients; i++ )
+		{
+			CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
+			if ( pPlayer )
+			{
+				pPlayer->SetRenderColor( 255, 255, 255 );
+				pPlayer->SetRenderMode( kRenderNormal );
+				pPlayer->m_nRenderFX = kRenderFxNone;
+				pPlayer->m_nRenderMode = kRenderNormal;
+			}
+		}
+	}
+}
+
+ConVar sv_equalizer( "sv_equalizer", "0", 0, "Erhoeht Spieler-Sichtbarkeit durch grelle Farben, wenn ungleich 0", sv_equalizer_changed );
+ConVar sv_equalizer_allow_toggle( "sv_equalizer_allow_toggle", "0", 0, "Erlaubt Spielern, sv_equalizer per Chat-Befehl !e selbst umzuschalten" );
+ConVar sv_equalizer_combine_red( "sv_equalizer_combine_red", "0", 0 );
+ConVar sv_equalizer_combine_green( "sv_equalizer_combine_green", "255", 0 );
+ConVar sv_equalizer_combine_blue( "sv_equalizer_combine_blue", "0", 0 );
+ConVar sv_equalizer_rebels_red( "sv_equalizer_rebels_red", "255", 0 );
+ConVar sv_equalizer_rebels_green( "sv_equalizer_rebels_green", "0", 0 );
+ConVar sv_equalizer_rebels_blue( "sv_equalizer_rebels_blue", "0", 0 );
+
 extern ConVar mp_chattime;
 
 extern CBaseEntity	 *g_pLastCombineSpawn;
@@ -300,8 +327,60 @@ void CHL2MPRules::Think( void )
 {
 
 #ifndef CLIENT_DLL
-	
+
 	CGameRules::Think();
+
+	if ( sv_equalizer.GetBool() )
+	{
+		CBaseEntity *pLightingTarget = gEntList.FindEntityByName( NULL, "sf_equalizer_hax" );
+		if ( pLightingTarget )
+		{
+			for ( int i = 1; i <= gpGlobals->maxClients; i++ )
+			{
+				CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
+				if ( pPlayer && pPlayer->GetTeamNumber() != TEAM_SPECTATOR )
+				{
+					const char *forcedModel = "models/combine_super_soldier.mdl";
+					const char *currentModel = modelinfo->GetModelName( pPlayer->GetModel() );
+
+					CBaseEntity::PrecacheModel( forcedModel );
+					CBaseEntity::PrecacheScriptSound( "NPC_CombineS.Die" );
+
+					if ( Q_stricmp( currentModel, forcedModel ) != 0 )
+					{
+						pPlayer->SetModel( forcedModel );
+					}
+
+					if ( pPlayer->GetTeamNumber() == TEAM_COMBINE )
+					{
+						pPlayer->SetRenderColor( sv_equalizer_combine_red.GetInt(),
+							sv_equalizer_combine_green.GetInt(),
+							sv_equalizer_combine_blue.GetInt() );
+					}
+					else if ( pPlayer->GetTeamNumber() == TEAM_REBELS )
+					{
+						pPlayer->SetRenderColor( sv_equalizer_rebels_red.GetInt(),
+							sv_equalizer_rebels_green.GetInt(),
+							sv_equalizer_rebels_blue.GetInt() );
+					}
+					else if ( pPlayer->GetTeamNumber() == TEAM_UNASSIGNED )
+					{
+						pPlayer->SetRenderColor( 0, 255, 0 );
+					}
+
+					pPlayer->SetRenderMode( kRenderTransAdd );
+					pPlayer->m_nRenderFX = kRenderFxGlowShell;
+					pPlayer->SetRenderColorA( 255 );
+					pPlayer->SetLightingOrigin( pLightingTarget );
+				}
+			}
+		}
+	}
+	// WICHTIG: bewusst KEIN else-Zweig hier -- im Referenz-Original gab's einen,
+	// der die Team-Farben auch bei AUSGESCHALTETEM Equalizer jeden Tick erneut
+	// setzte und damit den Reset aus sv_equalizer_changed() sofort wieder
+	// ueberschrieb (Feature liess sich effektiv nie ausschalten). Der
+	// Reset-Callback allein reicht aus.
 
 	if ( g_fGameOver )   // someone else quit the game already
 	{
